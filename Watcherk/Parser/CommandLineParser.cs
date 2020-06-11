@@ -2,8 +2,9 @@
 {
   public class CommandLineParser : ICommandLineParser
   {
-    private const string Usage = "Usage: Watcherk <process name> <maximum life time of the process (int)> <checking frequency (int)>";
+    private const string Usage = "Usage: Watcherk <process name> <maximum life time of the process in minutes (int)> <checking frequency in minutes (int)>";
     private string[] args;
+
     public CommandLineParser(string[] commandLineArguments)
     {
       args = commandLineArguments;
@@ -24,7 +25,7 @@
 
       options.ProcessName = args[0].Trim();
 
-      // parse second argument MaxLifeTime 
+      // parse second argument MaxLifeTime
       int max;
       if (!int.TryParse(args[1], out max))
       {

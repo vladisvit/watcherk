@@ -12,7 +12,7 @@ namespace TestWatcherk
   /// </summary>
   public class ProcessWatcherTest
   {
-    const string ProcessName = @"notepad";
+    private const string ProcessName = @"notepad";
 
     [SetUp]
     public void Setup()
@@ -21,7 +21,7 @@ namespace TestWatcherk
     }
 
     [Test]
-    public void Test1()
+    public void FindProcesses()
     {
       var watcher = new ProcessWatcher();
       var processes = watcher.GetProcesses(ProcessName);

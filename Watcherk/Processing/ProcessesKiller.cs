@@ -1,4 +1,6 @@
-﻿using System;
+﻿using log4net;
+using System;
+using System.Diagnostics;
 using System.Timers;
 using Watcherk.Parser;
 
@@ -6,11 +8,12 @@ namespace Watcherk.Processing
 {
   public class ProcessesKiller
   {
-    const int WaitingTime = 500;
-    bool _cancelled = false;
-    ICommandLineParser parser;
-    IProcessWatcher watcher;
-    IOptions options;
+    private static readonly ILog log = LogManager.GetLogger(typeof(ProcessesKiller));
+    private bool _cancelled = false;
+    private ICommandLineParser parser;
+    private IProcessWatcher watcher;
+    private IOptions options;
+
     public ProcessesKiller(ICommandLineParser commandParser, IProcessWatcher processWatcher)
     {
       parser = commandParser;
@@ -29,7 +32,10 @@ namespace Watcherk.Processing
       }
 
       Console.CancelKeyPress += Console_CancelKeyPress;
-      var timer = new Timer(options.Frequency);
+
+      KillProcesses();//first run check and kill process according to the params
+
+      var timer = new Timer(TimeSpan.FromMinutes(options.Frequency).TotalMilliseconds);
       timer.AutoReset = true;
       timer.Elapsed += Timer_Elapsed;
       try
@@ -39,41 +45,66 @@ namespace Watcherk.Processing
         {
           if (_cancelled)
           {
-            Console.WriteLine("Finish");
+            log.Info("The app was canceled");
             timer.Dispose();
             Console.CancelKeyPress -= Console_CancelKeyPress;
             return;
           }
         }
       }
+      catch (Exception e)
+      {
+        log.Error(e.Message);
+        log.Error(e.StackTrace);
+      }
       finally
       {
         timer.Dispose();
+        Console.CancelKeyPress -= Console_CancelKeyPress;
       }
     }
 
-    private void Timer_Elapsed(object sender, ElapsedEventArgs e)
+    private void KillProcesses()
     {
       var processes = watcher.GetProcesses(options.ProcessName);
-      foreach (var process in processes)
+      try
       {
-        if (DateTime.Now - process.StartTime > TimeSpan.FromMinutes(options.MaxLifeTime))
+        foreach (var process in processes)
         {
-          process.EnableRaisingEvents = true;
-          process.Exited += Process_Exited;
-          process.Kill();
+          var lifeTime = (DateTime.Now - process.StartTime).TotalMinutes;
+          if (lifeTime > options.MaxLifeTime)
+          {
+            process.EnableRaisingEvents = true;
+            process.Exited += Process_Exited;
+            log.Warn($"Try to kill process {process.ProcessName} ID: {process.Id}");
+            process.Kill(true);
+          }
         }
       }
+      catch (Exception e)
+      {
+        log.Error(e.Message);
+        log.Error(e.StackTrace);
+        throw;
+      }
+    }
+
+    private void Timer_Elapsed(object sender, ElapsedEventArgs eventArgs)
+    {
+      KillProcesses();
     }
 
     private void Process_Exited(object sender, System.EventArgs e)
     {
-      Console.WriteLine("process exited");
+      if (sender is Process process)
+      {
+        log.Warn($"Process {process.ProcessName} Id: {process.Id} exited. Start time: {process.StartTime}");
+      }
     }
 
     private void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
     {
-      Console.WriteLine("Cancelling");
+      log.Info("Cancelling");
       if (e.SpecialKey == ConsoleSpecialKey.ControlC)
       {
         _cancelled = true;
